@@ -44,8 +44,12 @@ class MIIServer:
         mii_config.generate_replica_configs()
 
         processes = self._initialize_service(mii_config)
-        self._wait_until_server_is_live(processes,
-                                        mii_config.model_config.replica_configs)
+        try:
+            self._wait_until_server_is_live(processes,
+                                            mii_config.model_config.replica_configs)
+        except Exception as ex:
+            print(ex, flush=True)
+            import traceback; traceback.print_exc()
 
     def _wait_until_server_is_live(self,
                                    processes: List[subprocess.Popen],

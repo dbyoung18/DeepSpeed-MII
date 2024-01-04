@@ -5,6 +5,7 @@
 import os
 import torch
 import diffusers
+from deepspeed import get_accelerator
 from utils import benchmark
 
 # Get HF auth key from environment or replace with key
@@ -18,7 +19,7 @@ save_path = "."
 pipe = diffusers.StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4",
                                                          use_auth_token=hf_auth_key,
                                                          torch_dtype=torch.float16,
-                                                         revision="fp16").to("cuda")
+                                                         revision="fp16").to(get_accelerator().device_name())
 
 # Create batch size number of prompts
 prompts = ["a photo of an astronaut riding a horse on mars"] * batch_size

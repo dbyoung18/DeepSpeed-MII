@@ -184,4 +184,4 @@ def init_distributed(model_config: "ModelConfig"):
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(model_config.torch_dist_port)
 
-    deepspeed.init_distributed(dist_backend="nccl", timeout=timedelta(seconds=1e9))
+    deepspeed.init_distributed(dist_backend=deepspeed.get_accelerator().communication_backend_name(), timeout=timedelta(seconds=1e9))

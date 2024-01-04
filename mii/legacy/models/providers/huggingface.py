@@ -7,7 +7,7 @@ import json
 import torch
 import deepspeed
 from deepspeed.inference.engine import InferenceEngine
-from deepspeed import OnDevice
+from deepspeed import OnDevice, get_accelerator
 from pathlib import Path
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from huggingface_hub import snapshot_download
@@ -26,7 +26,7 @@ class MetaTensorPipeline(object):
 
     def __call__(self, inputs, **kwargs):
         device = get_device()
-        torch.cuda.set_device(device)
+        get_accelerator().set_device(device)
         if isinstance(self.model, InferenceEngine):
             self.model = self.model.module
 
@@ -55,7 +55,7 @@ def get_device(load_with_sys_mem=False):
         device = torch.device("cpu")
     else:
         local_rank = int(os.getenv("LOCAL_RANK", "0"))
-        device = torch.device(f"cuda:{local_rank}")
+        device = get_accelerator().device(local_rank)
     return device
 
 

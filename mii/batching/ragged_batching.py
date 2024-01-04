@@ -71,7 +71,7 @@ class RaggedBatchBase:
         self._num_generated_tokens: int = 0
 
         self._zmq_context = zmq.Context()
-        torch.cuda.synchronize()
+        get_accelerator().synchronize()
         if self.is_rank_0:
             self.socket = self._zmq_context.socket(zmq.PUB)
             self.socket.bind(f"tcp://*:{self.zmq_port}")

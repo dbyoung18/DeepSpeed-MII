@@ -7,6 +7,7 @@ import mii.legacy as mii
 import torch
 import inspect
 import deepspeed
+from deepspeed import get_accelerator
 from deepspeed.runtime.config import DeepSpeedConfig
 from deepspeed.runtime.zero.config import ZeroStageEnum
 
@@ -90,10 +91,10 @@ def load_models(model_config):
         inference_pipeline.model = ds_engine.module
 
     if model_config.load_with_sys_mem:
-        inference_pipeline.device = torch.device(f"cuda:{local_rank}")
+        inference_pipeline.device = get_accelerator().device(local_rank)
 
     # Free up memory used when initially loading models
     # so nvidia-smi reports correct amount of memory used.
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
 
     return inference_pipeline

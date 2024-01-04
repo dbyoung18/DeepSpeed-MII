@@ -11,6 +11,7 @@ import numpy
 import diffusers
 import transformers
 
+from deepspeed import get_accelerator
 from packaging import version
 
 assert version.parse(diffusers.__version__) >= version.parse('0.7.1'), "diffusers must be 0.7.1+"
@@ -26,11 +27,11 @@ def benchmark(func, inputs, save_path=".", trials=5, tag="", save=True):
 
     durations = []
     for trial in range(trials):
-        torch.cuda.synchronize()
+        get_accelerator().synchronize()
         start = time.perf_counter()
         with torch.inference_mode():
             results = func(inputs)
-        torch.cuda.synchronize()
+        get_accelerator().synchronize()
         duration = time.perf_counter() - start
         durations.append(duration)
         print(f"trial={trial}, time_taken={duration:.4f}")

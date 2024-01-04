@@ -11,6 +11,7 @@ import mii.legacy as mii
 from types import SimpleNamespace
 from huggingface_hub import HfApi
 
+from deepspeed import get_accelerator
 from mii.legacy.models.score.generate import generated_score_path
 from mii.legacy.constants import (
     MII_CACHE_PATH,
@@ -182,8 +183,8 @@ def get_num_gpus(mii_config):
     num_gpus = mii_config.model_config.tensor_parallel
 
     assert (
-        torch.cuda.device_count() >= num_gpus
-    ), f"Available GPU count: {torch.cuda.device_count()} does not meet the required gpu count: {num_gpus}"
+        get_accelerator().device_count() >= num_gpus
+    ), f"Available GPU count: {get_accelerator().device_count()} does not meet the required gpu count: {num_gpus}"
     return num_gpus
 
 
