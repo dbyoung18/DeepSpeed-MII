@@ -276,9 +276,9 @@ def _do_serve(service_impl, port, interceptors=[]):
                                    GRPC_MAX_MSG_SIZE)])
     modelresponse_pb2_grpc.add_ModelResponseServicer_to_server(service_impl, server)
     server.add_insecure_port(f"[::]:{port}")
-    print(f"About to start server")
+    print(f"About to start server", flush=True)
     server.start()
-    print(f"Started")
+    print(f"Started", flush=True)
     stop_event.wait()
     server.stop(SERVER_SHUTDOWN_TIMEOUT)
 
