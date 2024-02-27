@@ -53,15 +53,15 @@ class MIIClient:
         """
         return self.generate(*args, **kwargs)
 
-    async def _request_async_response(self, prompts, **query_kwargs):
+    async def _request_async_response(self, prompts, input_tokens, **query_kwargs):
         task_methods = TASK_METHODS_DICT[self.task]
-        proto_request = task_methods.pack_request_to_proto(prompts, **query_kwargs)
+        proto_request = task_methods.pack_request_to_proto(prompts, input_tokens, **query_kwargs)
         proto_response = await getattr(self.stub, task_methods.method)(proto_request)
         return task_methods.unpack_response_from_proto(proto_response)
 
-    async def _request_async_response_stream(self, prompts, **query_kwargs):
+    async def _request_async_response_stream(self, prompts, input_tokens, **query_kwargs):
         task_methods = TASK_METHODS_DICT[self.task]
-        proto_request = task_methods.pack_request_to_proto(prompts, **query_kwargs)
+        proto_request = task_methods.pack_request_to_proto(prompts, input_tokens, **query_kwargs)
         assert hasattr(task_methods, "method_stream_out"), f"{self.task} does not support streaming response"
         async for response in getattr(self.stub,
                                       task_methods.method_stream_out)(proto_request):
@@ -69,13 +69,15 @@ class MIIClient:
 
     def generate(self,
                  prompts: Union[str,
-                                List[str]],
+                                List[str]] = None,
+                 input_tokens: List[List[int]] = None,
                  streaming_fn: Callable = None,
                  **generate_kwargs: Dict) -> List[Response]:
         """
         Generates text for the given prompts.
 
         :param prompts: The string or list of strings used as prompts for generation.
+        :param input_tokens: The list of input tokens for generation.
         :param streaming_fn: Streaming support is currently a WIP.
         :param \\*\\*generate_kwargs: Generation keywords. A full list can be found here.
 
@@ -89,10 +91,11 @@ class MIIClient:
                 raise RuntimeError(
                     "MII client streaming only supports a single prompt input.")
             generate_kwargs["stream"] = True
-            return self._generate_stream(streaming_fn, prompts, **generate_kwargs)
+            return self._generate_stream(streaming_fn, prompts, input_tokens, **generate_kwargs)
 
         return self.asyncio_loop.run_until_complete(
             self._request_async_response(prompts,
+                                         input_tokens,
                                          **generate_kwargs))
 
     def _generate_stream(self,

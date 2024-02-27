@@ -5,6 +5,7 @@
 : ${DP=${3:-1}}
 : ${MODEL:="/datadisk/share/llama2-7b"}
 : ${LAUNCH:="python"}
+: ${SKIP_DECODE:=false}
 
 function set_env() {
   # 1th round, set HF_HOME
@@ -41,7 +42,7 @@ function set_env() {
 }
 
 function main() {
-  set_env
+  # set_env
 
   case ${LAUNCH} in
   "mpi") CMD="mpirun -np ${TP} --prepend-rank python" ;;
@@ -52,9 +53,13 @@ function main() {
   case ${TYPE} in
   "pipeline") CMD+=" non-persistent/pipeline.py --model ${MODEL} --tp ${TP}" ;;
   "serve") CMD+=" persistent/serve.py --model ${MODEL} --tp ${TP} --dp ${DP}" ;;
-  "client") CMD+=" persistent/client.py --model ${MODEL}" ;;
-  "terminate") CMD+=" persistent/terminate.py --model ${MODEL}" ;;
+  "client") CMD+=" persistent/client.py" ;;
+  "terminate") CMD+=" persistent/terminate.py" ;;
+  "oneshot") CMD+=" persistent/oneshot.py --model ${MODEL} --tp ${TP} --dp ${DP}" ;;
+  "stream") CMD+=" persistent/stream.py --model ${MODEL} --tp ${TP} --dp ${DP}" ;;
   esac
+
+  [ ${SKIP_DECODE} == true ] && CMD+=" --skip_decode"
 
   echo ${CMD}
   exec ${CMD}

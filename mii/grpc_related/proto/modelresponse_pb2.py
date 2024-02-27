@@ -15,9 +15,7 @@ _sym_db = _symbol_database.Default()
 
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\x13modelresponse.proto\x12\rmodelresponse\x1a\x1bgoogle/protobuf/empty.proto\"\x88\x01\n\nDictionary\x12\x35\n\x06values\x18\x01 \x03(\x0b\x32%.modelresponse.Dictionary.ValuesEntry\x1a\x43\n\x0bValuesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.modelresponse.Value:\x02\x38\x01\"\x8c\x01\n\x05Value\x12\x10\n\x06svalue\x18\x01 \x01(\tH\x00\x12\x10\n\x06ivalue\x18\x02 \x01(\x03H\x00\x12\x10\n\x06\x66value\x18\x03 \x01(\x02H\x00\x12\x10\n\x06\x62value\x18\x04 \x01(\x08H\x00\x12+\n\x06mvalue\x18\x05 \x01(\x0b\x32\x19.modelresponse.DictionaryH\x00\x42\x0e\n\x0coneof_values\"\xbb\x01\n\x13SingleStringRequest\x12\x0f\n\x07request\x18\x01 \x01(\t\x12I\n\x0cquery_kwargs\x18\x02 \x03(\x0b\x32\x33.modelresponse.SingleStringRequest.QueryKwargsEntry\x1aH\n\x10QueryKwargsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.modelresponse.Value:\x02\x38\x01\"\xb9\x01\n\x12MultiStringRequest\x12\x0f\n\x07request\x18\x01 \x03(\t\x12H\n\x0cquery_kwargs\x18\x02 \x03(\x0b\x32\x32.modelresponse.MultiStringRequest.QueryKwargsEntry\x1aH\n\x10QueryKwargsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.modelresponse.Value:\x02\x38\x01\"\x9f\x01\n\x15SingleGenerationReply\x12\x10\n\x08response\x18\x01 \x01(\t\x12\x15\n\rfinish_reason\x18\x02 \x01(\t\x12\x15\n\rprompt_tokens\x18\x03 \x01(\x03\x12\x18\n\x10generated_tokens\x18\x04 \x01(\x03\x12\x12\n\ntime_taken\x18\x05 \x01(\x02\x12\x18\n\x10model_time_taken\x18\x06 \x01(\x02\"N\n\x14MultiGenerationReply\x12\x36\n\x08response\x18\x01 \x03(\x0b\x32$.modelresponse.SingleGenerationReply2\x8e\x02\n\rModelResponse\x12=\n\tTerminate\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.Empty\"\x00\x12Z\n\x0eGeneratorReply\x12!.modelresponse.MultiStringRequest\x1a#.modelresponse.MultiGenerationReply\"\x00\x12\x62\n\x14GeneratorReplyStream\x12!.modelresponse.MultiStringRequest\x1a#.modelresponse.MultiGenerationReply\"\x00\x30\x01\x62\x06proto3'
-)
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x13modelresponse.proto\x12\rmodelresponse\x1a\x1bgoogle/protobuf/empty.proto\"\x88\x01\n\nDictionary\x12\x35\n\x06values\x18\x01 \x03(\x0b\x32%.modelresponse.Dictionary.ValuesEntry\x1a\x43\n\x0bValuesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.modelresponse.Value:\x02\x38\x01\"\x8c\x01\n\x05Value\x12\x10\n\x06svalue\x18\x01 \x01(\tH\x00\x12\x10\n\x06ivalue\x18\x02 \x01(\x03H\x00\x12\x10\n\x06\x66value\x18\x03 \x01(\x02H\x00\x12\x10\n\x06\x62value\x18\x04 \x01(\x08H\x00\x12+\n\x06mvalue\x18\x05 \x01(\x0b\x32\x19.modelresponse.DictionaryH\x00\x42\x0e\n\x0coneof_values\"\xd2\x01\n\x13SingleStringRequest\x12\x0f\n\x07request\x18\x01 \x01(\t\x12\x15\n\rprompt_tokens\x18\x02 \x03(\x05\x12I\n\x0cquery_kwargs\x18\x03 \x03(\x0b\x32\x33.modelresponse.SingleStringRequest.QueryKwargsEntry\x1aH\n\x10QueryKwargsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.modelresponse.Value:\x02\x38\x01\"I\n\x12MultiStringRequest\x12\x33\n\x07request\x18\x01 \x03(\x0b\x32\".modelresponse.SingleStringRequest\"\xb9\x01\n\x15SingleGenerationReply\x12\x10\n\x08response\x18\x01 \x01(\t\x12\x15\n\rfinish_reason\x18\x02 \x01(\t\x12\x15\n\rprompt_tokens\x18\x03 \x01(\x03\x12\x12\n\ntime_taken\x18\x04 \x01(\x02\x12\x18\n\x10model_time_taken\x18\x05 \x01(\x02\x12\x18\n\x10generated_length\x18\x06 \x01(\x03\x12\x18\n\x10generated_tokens\x18\x07 \x03(\x03\"N\n\x14MultiGenerationReply\x12\x36\n\x08response\x18\x01 \x03(\x0b\x32$.modelresponse.SingleGenerationReply2\x8e\x02\n\rModelResponse\x12=\n\tTerminate\x12\x16.google.protobuf.Empty\x1a\x16.google.protobuf.Empty\"\x00\x12Z\n\x0eGeneratorReply\x12!.modelresponse.MultiStringRequest\x1a#.modelresponse.MultiGenerationReply\"\x00\x12\x62\n\x14GeneratorReplyStream\x12!.modelresponse.MultiStringRequest\x1a#.modelresponse.MultiGenerationReply\"\x00\x30\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -45,9 +43,9 @@ if _descriptor._USE_C_DESCRIPTORS == False:
     _globals['_MULTISTRINGREQUEST_QUERYKWARGSENTRY']._serialized_start = 465
     _globals['_MULTISTRINGREQUEST_QUERYKWARGSENTRY']._serialized_end = 537
     _globals['_SINGLEGENERATIONREPLY']._serialized_start = 728
-    _globals['_SINGLEGENERATIONREPLY']._serialized_end = 887
-    _globals['_MULTIGENERATIONREPLY']._serialized_start = 889
-    _globals['_MULTIGENERATIONREPLY']._serialized_end = 967
-    _globals['_MODELRESPONSE']._serialized_start = 970
-    _globals['_MODELRESPONSE']._serialized_end = 1240
+    _globals['_SINGLEGENERATIONREPLY']._serialized_end = 913
+    _globals['_MULTIGENERATIONREPLY']._serialized_start = 915
+    _globals['_MULTIGENERATIONREPLY']._serialized_end = 993
+    _globals['_MODELRESPONSE']._serialized_start = 996
+    _globals['_MODELRESPONSE']._serialized_end = 1266
 # @@protoc_insertion_point(module_scope)

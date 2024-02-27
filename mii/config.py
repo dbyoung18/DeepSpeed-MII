@@ -188,6 +188,10 @@ class ModelConfig(MIIConfigModel):
     """
     Log performance information about model inference with very little overhead.
     """
+    skip_decode: bool = False
+    """
+    Response generate tokens without tokenizer.decode
+    """
     @property
     def provider(self) -> ModelProvider:
         return ModelProvider.HUGGING_FACE

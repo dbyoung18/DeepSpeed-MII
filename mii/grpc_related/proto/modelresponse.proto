@@ -45,21 +45,22 @@ message Value {
 
 message SingleStringRequest {
   string request = 1;
-  map<string,Value> query_kwargs = 2;
+  repeated int32 prompt_tokens = 2;
+  map<string,Value> query_kwargs = 3;
 }
 
 message MultiStringRequest {
-  repeated string request = 1;
-  map<string,Value> query_kwargs = 2;
+  repeated SingleStringRequest request = 1;
 }
 
 message SingleGenerationReply {
   string response = 1;
   string finish_reason = 2;
   int64 prompt_tokens = 3;
-  int64 generated_tokens = 4;
-  float time_taken = 5;
-  float model_time_taken = 6;
+  float time_taken = 4;
+  float model_time_taken = 5;
+  int64 generated_length = 6;
+  repeated int64 generated_tokens = 7;
 }
 
 message MultiGenerationReply {

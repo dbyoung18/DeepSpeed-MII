@@ -29,6 +29,9 @@ class Response:
 
     finish_reason: GenerationFinishReason
     """ Reason for ending generation. One of :class:`mii.constants.GenerationFinishReason`. """
+
+    generated_tokens: torch.Tensor
+    """ The generated tokens. """
     @staticmethod
     def from_msg_dict(msg: Dict[str, Union[str, int]]) -> Self:
         return Response(**msg)

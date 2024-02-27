@@ -4,6 +4,8 @@ import mii
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default="/datadisk/share/llama2-7b", help="model name or path.")
 parser.add_argument("--tp", type=int, default=2, help="Tensor-Parallel Size.")
+parser.add_argument("--dp", type=int, default=1, help="Data-Parallel Size.")
+parser.add_argument("--name", type=str, default="mii-deployment", help="mii deployment name")
 parser.add_argument(
     "--prompts", type=str, nargs="+", default=[
         "Once upon a time, there existed a little girl, who liked to have adventures. She wanted to go to places and meet new people, and have fun.",
@@ -16,23 +18,36 @@ parser.add_argument("--max-new-tokens", type=int, default=128)
 parser.add_argument("--skip_decode", action="store_true", help="response tokens w/o tokenzier.decode")
 args = parser.parse_args()
 
-pipe = mii.pipeline(
+client = mii.serve(
     args.model,
     tensor_parallel=args.tp,
+    replica_num=args.dp,
+    deployment_name=args.name,
+    enable_restful_api=True,
+    restful_api_port=28080,
     skip_decode=args.skip_decode,
 )
 
-inputs = args.prompts
-# inputs = [pipe.tokenizer.encode(input) for input in inputs]
-# print(f"inputs::{inputs}", flush=True)
+import time
+time.sleep(60)
+print(f"Serving model {args.model} with server {args.name} on {args.tp * args.dp} GPU(s).")
 
-responses = pipe(
-    inputs,
-    max_new_tokens=args.max_new_tokens,
-    do_sample=False,  # Greedy
-    # return_full_text=True,
-)
+try:
+    responses = client.generate(
+        args.prompts,
+        max_new_tokens=args.max_new_tokens,
+        do_sample=False,  # Greedy
+        # return_full_text=True,
+    )
+except Exception as ex:
+    print(f"Encounter exception: {ex}")
+    import traceback
 
-if pipe.is_rank_0:
+    trace = traceback.format_exc()
+    print(trace)
+else:
     for i, r in enumerate(responses):
         print(f"response {i}\ngenerated_text:{r.generated_text}\ngenerated_tokens:{r.generated_tokens}\n", "-" * 80, "\n")
+finally:
+    client.terminate_server()
+    print(f"Terminated server {args.name}.")

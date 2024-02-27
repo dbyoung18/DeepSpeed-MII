@@ -467,11 +467,13 @@ class RaggedBatchBase:
                       generated_text: str,
                       prompt_length: int,
                       generated_length: int,
-                      finish_reason: GenerationFinishReason) -> Response:
+                      finish_reason: GenerationFinishReason,
+                      generated_tokens: torch.Tensor) -> Response:
         return Response(generated_text=generated_text,
                         prompt_length=prompt_length,
                         generated_length=generated_length,
-                        finish_reason=finish_reason)
+                        finish_reason=finish_reason,
+                        generated_tokens=generated_tokens)
 
     def put(self, uids: List[int], tokenized_input: List[torch.Tensor]) -> torch.Tensor:
         # Call inference engine. You can skip checking schedulability because we already checked when scheduling
@@ -541,7 +543,8 @@ class MIIPipeline(RaggedBatchBase):
 
     def __call__(self,
                  prompts: Union[str,
-                                List[str]],
+                                List[str],
+                                torch.Tensor],
                  **generate_kwargs) -> List[Response]:
         """
         Generates text for the given prompts
@@ -557,7 +560,7 @@ class MIIPipeline(RaggedBatchBase):
             raise RuntimeError(
                 "The inference engine of this pipeline has been destroyed.")
 
-        if isinstance(prompts, str):
+        if isinstance(prompts, str) or isinstance(prompts, torch.Tensor):
             prompts = [prompts]
         outputs: List[Response] = []
         uids_running: List[int] = list(range(len(prompts)))
@@ -599,18 +602,26 @@ class MIIPipeline(RaggedBatchBase):
 
         return outputs
 
-    def _put_request(self, uid: int, input: str, kwargs: Dict[str, Any]) -> None:
+    def _put_request(self, uid: int, input: Union[str, List[int], torch.Tensor], kwargs: Dict[str, Any]) -> None:
         self.result_queues[self.tid] = queue.Queue()
-        input_tokens = self.tokenizer.encode(input)
-        print(">>> _put_request", self.tid, uid, input_tokens, input)
+        if isinstance(input, str):
+            input_tokens = self.tokenizer.encode(input)
+        elif isinstance(input, torch.Tensor):
+            input_tokens = input
+        else:
+            input_tokens = torch.tensor(list(input), dtype=torch.int32)
+
         request = self.make_request(self.tid, uid, input_tokens, kwargs)
         self.request_queue.put(request)
 
     def _get_response(self) -> Tuple[int, Response]:
         result = self.result_queues[self.tid].get()
         uid = result[0]
-        generated_tokens = self.tokenizer.decode(result[1])
-        response = self.make_response(generated_tokens, result[2], result[3], result[4])
+        if self.model_config.skip_decode:
+            generated_text = ""
+        else:
+            generated_text = self.tokenizer.decode(result[1])
+        response = self.make_response(generated_text, result[2], result[3], result[4], result[1])
         return uid, response
 
     def _bcast_responses(self, responses: List[Response]) -> List[Response]:
@@ -664,7 +675,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
 
         return uid
 
-    def put_request(self, prompt: str, kwargs: Dict) -> int:
+    def put_request(self, input: Union[str, List[int], torch.Tensor], kwargs: Dict) -> int:
         # TODO: We should avoid any request/response work with non-rank 0, but
         # this requires some refactoring how we do the put and request in
         # `ModelResponse`
@@ -685,7 +696,13 @@ class MIIAsyncPipeline(RaggedBatchBase):
             if tid not in self.result_queues:
                 self.result_queues[tid] = queue.Queue()
 
-        input_tokens = self.tokenizer.encode(prompt)
+        if isinstance(input, str):
+            input_tokens = self.tokenizer.encode(input)
+        elif isinstance(input, torch.Tensor):
+            input_tokens = input
+        else:
+            input_tokens = torch.tensor(list(input), dtype=torch.int32)
+
         request = self.make_request(tid, uid, input_tokens, kwargs)
         self.request_queue.put(request)
 
@@ -699,15 +716,20 @@ class MIIAsyncPipeline(RaggedBatchBase):
             return -1, Response(generated_text="",
                             prompt_length=None,
                             generated_length=None,
-                            finish_reason=None)
+                            finish_reason=None,
+                            generated_tokens=None)
         tid = threading.get_ident()
         uid, generated_token_ids, prompt_length, generated_length, finish_reason, streaming = self.result_queues[tid].get()
 
-        if len(generated_token_ids) == 0:
+        if self.model_config.skip_decode or len(generated_token_ids) == 0:
             generated_text = ""
             self.readable_stream.flush_state(tid)
         elif streaming:
-            generated_text = self.readable_stream.decode(tid, generated_token_ids)
+            # generated_token_ids = generated_token_ids[0]
+            if self.model_config.skip_decode or len(generated_token_ids) == 0:
+                generated_text = ""
+            else:
+                generated_text = self.readable_stream.decode(tid, generated_token_ids)
         else:
             generated_text = self.tokenizer.decode(generated_token_ids)
 
@@ -716,6 +738,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
             prompt_length=prompt_length,
             generated_length=generated_length,
             finish_reason=finish_reason,
+            generated_tokens=generated_token_ids,
         )
         return uid, response
 
