@@ -11,7 +11,8 @@ from mii.utils import init_distributed
 
 
 def load_model(model_config: ModelConfig) -> InferenceEngineV2:
-    init_distributed(model_config)
+    if model_config.tensor_parallel > 1:
+        init_distributed(model_config)
     provider = model_config.provider
     if provider == ModelProvider.HUGGING_FACE:
         inference_engine = build_hf_engine(

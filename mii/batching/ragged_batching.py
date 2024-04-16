@@ -602,6 +602,7 @@ class MIIPipeline(RaggedBatchBase):
     def _put_request(self, uid: int, input: str, kwargs: Dict[str, Any]) -> None:
         self.result_queues[self.tid] = queue.Queue()
         input_tokens = self.tokenizer.encode(input)
+        print(">>> _put_request", self.tid, uid, input_tokens, input)
         request = self.make_request(self.tid, uid, input_tokens, kwargs)
         self.request_queue.put(request)
 
