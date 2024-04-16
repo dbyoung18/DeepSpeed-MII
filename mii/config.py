@@ -55,7 +55,7 @@ class GenerateParamsConfig(MIIConfigModel):
     """ Prepends the input prompt to the generated text. """
 
     do_sample: bool = True
-    """ When ``False``, do greedy sampling. """
+    """ When ``False``, do greedy or beam sampling. """
 
     top_p: float = Field(0.9, gt=0, le=1)
     """ Top P value. """
@@ -68,6 +68,15 @@ class GenerateParamsConfig(MIIConfigModel):
 
     stop: List[str] = []
     """ List of strings to stop generation at."""
+
+    stop_ids: List[int] = []
+    """ List of token ids to stop generation at. """
+
+    num_beams: int = 1
+    """ Number of output sequences. Set > 1 for beam search. """
+
+    detokenize: bool = True
+    """ Whether to detokenize output tokens. """
     @validator("stop", pre=True)
     def make_stop_string_list(cls, field_value: Union[str, List[str]]) -> List[str]:
         if isinstance(field_value, str):

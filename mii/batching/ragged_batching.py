@@ -23,7 +23,7 @@ from deepspeed.utils.timer import SynchronizedWallClockTimer
 from mii.batching.constants import TOP_K_NAME, TOP_P_NAME, TEMP_NAME, SAMPLER_NAME, STOP_NAME
 from mii.batching.data_classes import Response, Request, RequestBatch
 from mii.batching.generation.logit_processors import TopPLogitProcessor, TopKLogitProcessor, TemperatureLogitProcessor
-from mii.batching.generation.samplers import LogitsSampler, GreedySampler
+from mii.batching.generation.samplers import LogitsSampler, GreedySampler, BeamSampler
 from mii.batching.generation.stop_criterion import EosGenerationStopCriterion, TokenStopCriterion
 from mii.batching.postprocess import (
     run_batch_logit_processing,
@@ -426,14 +426,20 @@ class RaggedBatchBase:
             post_processing.append(temp_name)
 
         do_sample = generate_params.do_sample
+        num_beams = generate_params.num_beams
         if do_sample:
             sampler_name = "_".join((SAMPLER_NAME, "logits"))
             if sampler_name not in self._post_processors:
                 self._post_processors[sampler_name] = LogitsSampler()
-        else:
+        elif num_beams == 1:
             sampler_name = "_".join((SAMPLER_NAME, "greedy"))
             if sampler_name not in self._post_processors:
                 self._post_processors[sampler_name] = GreedySampler()
+        else:
+            sampler_name = "_".join((SAMPLER_NAME, "beam"))
+            if sampler_name not in self._post_processors:
+                self._post_processors[sampler_name] = BeamSampler(
+                    num_beams=num_beams)
         post_processing.append(sampler_name)
 
         stop = generate_params.stop
