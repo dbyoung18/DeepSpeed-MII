@@ -23,6 +23,7 @@ from mii.constants import (
 )
 from mii.grpc_related.proto import modelresponse_pb2_grpc
 from mii.grpc_related.task_methods import TASK_METHODS_DICT, TaskMethods
+from deepspeed.accelerator import get_accelerator
 
 
 class ServiceBase(modelresponse_pb2_grpc.ModelResponseServicer):
@@ -62,6 +63,7 @@ class ModelResponse(ServiceBase):
         return task_methods
 
     def GeneratorReply(self, request, context):
+        print(f"GeneratorReply::local_rank:{get_accelerator().current_device()}", flush=True)
         task_methods = self._get_task_methods("GeneratorReply")
 
         prompts, kwargs = task_methods.unpack_request_from_proto(request)
@@ -70,6 +72,7 @@ class ModelResponse(ServiceBase):
         # Put requests for all prompts into the pipeline
         for p in prompts:
             request_kwargs = kwargs.copy()
+            print(f"GeneratorReply::prompt:{p}", flush=True)
             uid = self.inference_pipeline.put_request(p, request_kwargs)
             uids_put_order.append(uid)
             uids_running.append(uid)
@@ -78,6 +81,7 @@ class ModelResponse(ServiceBase):
         # so new requests can be processed
         while uids_running:
             uid, response = self.inference_pipeline.get_response()
+            print(f"GeneratorReply::response:{uid},{response}", flush=True)
             # TODO: Ugly hack for multi-threading. Will be fixed when we refactor these methods
             if uid == -1:
                 uid = uids_running[0]

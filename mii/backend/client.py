@@ -12,6 +12,8 @@ from mii.config import MIIConfig
 from mii.constants import GRPC_MAX_MSG_SIZE
 from mii.grpc_related.proto import modelresponse_pb2, modelresponse_pb2_grpc
 from mii.grpc_related.task_methods import TASK_METHODS_DICT
+from deepspeed.accelerator import get_accelerator
+import os
 
 
 def create_channel(host, port):
@@ -55,6 +57,7 @@ class MIIClient:
 
     async def _request_async_response(self, prompts, input_tokens, **query_kwargs):
         task_methods = TASK_METHODS_DICT[self.task]
+        print(f"_request_async_response::local_rank:{get_accelerator().current_device()},{os.environ['ZE_AFFINITY_MASK']}", flush=True)
         proto_request = task_methods.pack_request_to_proto(prompts, input_tokens, **query_kwargs)
         proto_response = await getattr(self.stub, task_methods.method)(proto_request)
         return task_methods.unpack_response_from_proto(proto_response)
@@ -127,6 +130,7 @@ class MIIClient:
         client.
         """
         self.asyncio_loop.run_until_complete(self.terminate_async())
+        self.mii_config.enable_restful_api = False
         if self.mii_config.enable_restful_api:
             requests.get(
                 f"http://localhost:{self.mii_config.restful_api_port}/terminate")

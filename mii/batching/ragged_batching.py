@@ -681,6 +681,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
         return uid
 
     def put_request(self, input: Union[str, List[int], torch.Tensor], kwargs: Dict) -> int:
+        print(f"put_request::local_rank:{self.local_rank},{get_accelerator().current_device()}", flush=True)
         # TODO: We should avoid any request/response work with non-rank 0, but
         # this requires some refactoring how we do the put and request in
         # `ModelResponse`
@@ -707,6 +708,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
             input_tokens = input
         else:
             input_tokens = torch.tensor(list(input), dtype=torch.int32)
+        print(f"put_request::input_tokens:{input_tokens}", flush=True)
 
         request = self.make_request(tid, uid, input_tokens, kwargs)
         self.request_queue.put(request)
@@ -717,6 +719,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
         # TODO: We should avoid any request/response work with non-rank 0, but
         # this requires some refactoring how we do the put and request in
         # `ModelResponse`
+        print(f"get_response::local_rank:{self.local_rank}", flush=True)
         if not self.is_rank_0:
             return -1, Response(generated_text="",
                             prompt_length=None,
