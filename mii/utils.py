@@ -176,26 +176,13 @@ def generate_deployment_name(model_name_or_path: str):
 
 def init_distributed(model_config: "ModelConfig"):
     # If not running with a distributed launcher (e.g., deepspeed, torch) set some default environment variables
-    if get_accelerator().device_name() == "xpu":  # use IMPI launcher
-        required_env = ["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR", "MASTER_PORT", "ZE_AFFINITY_MASK"]
-        if not all([e in os.environ for e in required_env]):
-            os.environ["RANK"] = os.environ.get("MPI_LOCALRANKID", "0")
-            os.environ["LOCAL_RANK"] = os.environ.get("MPI_LOCALRANKID", "0")
-            os.environ["WORLD_SIZE"] = os.environ.get("PMI_SIZE", "1")
-            os.environ["MASTER_ADDR"] = os.environ.get("MASTER_ADDR", "localhost")
-            os.environ["MASTER_PORT"] = os.environ.get("MASTER_PORT", str(model_config.torch_dist_port))
-            os.environ["ZE_AFFINITY_MASK"] = os.environ.get("ZE_AFFINITY_MASK", "")
-    else:
-        required_env = ["RANK", "WORLD_SIZE", "MASTER_ADDR", "MASTER_PORT", "LOCAL_RANK"]
-        if not all([e in os.environ for e in required_env]):
-            print("use default init env", flush=True)
-            # assert model_config.tensor_parallel == 1, "Attempting to run with TP > 1 and not using a distributed launcher like deepspeed or torch.distributed"
-            os.environ["RANK"] = "0"
-            os.environ["LOCAL_RANK"] = "0"
-            os.environ["WORLD_SIZE"] = "1"
-            os.environ["MASTER_ADDR"] = "localhost"
-            os.environ["MASTER_PORT"] = str(model_config.torch_dist_port)
-    for k in required_env:
-        print(f"==> mii::init_distributed::{k}:{os.environ[k]}", flush=True)
+    required_env = ["RANK", "WORLD_SIZE", "MASTER_ADDR", "MASTER_PORT", "LOCAL_RANK"]
+    if not all([e in os.environ for e in required_env]):
+        assert model_config.tensor_parallel == 1, "Attempting to run with TP > 1 and not using a distributed launcher like deepspeed or torch.distributed"
+        os.environ["RANK"] = "0"
+        os.environ["LOCAL_RANK"] = "0"
+        os.environ["WORLD_SIZE"] = "1"
+        os.environ["MASTER_ADDR"] = "localhost"
+        os.environ["MASTER_PORT"] = str(model_config.torch_dist_port)
 
     deepspeed.init_distributed(dist_backend=deepspeed.get_accelerator().communication_backend_name(), timeout=timedelta(seconds=1e9))

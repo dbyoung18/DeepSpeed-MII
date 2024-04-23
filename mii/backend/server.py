@@ -44,12 +44,8 @@ class MIIServer:
         mii_config.generate_replica_configs()
 
         processes = self._initialize_service(mii_config)
-        try:
-            self._wait_until_server_is_live(processes,
-                                            mii_config.model_config.replica_configs)
-        except Exception as ex:
-            print(ex, flush=True)
-            import traceback; traceback.print_exc()
+        self._wait_until_server_is_live(processes,
+                                        mii_config.model_config.replica_configs)
 
     def _wait_until_server_is_live(self,
                                    processes: List[subprocess.Popen],
@@ -158,24 +154,19 @@ class MIIServer:
                 f"{repl_config.hostname} slots={max(host_gpus[repl_config.hostname])+1}\n"
                 .encode())
             if get_accelerator().device_name() == "xpu":
-                impi_launch_str = f"mpirun -np {mii_config.model_config.tensor_parallel} --prepend-rank"
-                if "ZE_AFFINITY_MASK" in os.environ:
-                    ze_mask_indices = os.environ["ZE_AFFINITY_MASK"].split(',')
-                    ze_used_indices = [ze_mask_indices[i] for i in repl_config.gpu_indices]
-                else:
-                    ze_used_indices = repl_config.gpu_indices
-                impi_launch_str += f" -env ZE_AFFINITY_MASK={','.join(ze_used_indices)}"
-                impi_launch_str += f" -env MASTER_ADDR={repl_config.hostname}"
-                impi_launch_str += f" -env MASTER_PORT={str(repl_config.torch_dist_port)}"
-                process = self._launch_server_process(
-                    mii_config.model_config,
-                    "MII server",
-                    ds_launch_str=impi_launch_str,
-                    server_args=server_args + [
-                        f"--server-port {repl_config.tensor_parallel_ports[0]} --zmq-port {repl_config.zmq_port}"
-                    ],
-                )
-                processes.append(process)
+                ds_launch_str = self._generate_ds_launch_str(repl_config,
+                                                hostfile.name,
+                                                use_multiple_hosts)
+                ds_launch_str += f" --force_multi --launcher impi"
+                processes.append(
+                    self._launch_server_process(
+                        mii_config.model_config,
+                        "MII server",
+                        ds_launch_str=ds_launch_str,
+                        server_args=server_args + [
+                            f"--server-port {repl_config.tensor_parallel_ports[0]} --zmq-port {repl_config.zmq_port}"
+                        ],
+                    ))
             else:
                 ds_launch_str = self._generate_ds_launch_str(repl_config,
                                                 hostfile.name,
