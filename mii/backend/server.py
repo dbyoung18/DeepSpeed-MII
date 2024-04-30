@@ -9,7 +9,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from typing import List
+from typing import List, Dict
 
 from deepspeed.accelerator import get_accelerator
 from deepspeed.runtime.config_utils import DeepSpeedConfigModel
@@ -95,7 +95,8 @@ class MIIServer:
                                model_config: ModelConfig,
                                msg_server_type: str,
                                ds_launch_str: str = "",
-                               server_args: List[str] = None) -> subprocess.Popen:
+                               server_args: List[str] = None,
+                               env: Dict = None) -> subprocess.Popen:
         launch_str = f"{sys.executable} -m mii.launch.multi_gpu_server"
         b64_config_str = config_to_b64_str(model_config)
         if server_args is None:
@@ -105,7 +106,7 @@ class MIIServer:
         cmd = f"{ds_launch_str} {launch_str} {server_args_str}".strip().split(" ")
 
         logger.info(f"msg_server launch: {cmd}")
-        return subprocess.Popen(cmd)
+        return subprocess.Popen(cmd, env=env)
 
     def _generate_ds_launch_str(self,
                                 replica_config: ReplicaConfig,
@@ -116,8 +117,9 @@ class MIIServer:
         #worker_str = f"-H {hostfile} "
         worker_str = ""
         # pin deepspeed launch to specific gpu id(s)
-        included_gpus = f"{replica_config.hostname}:{','.join(map(str, replica_config.gpu_indices))}"
-        worker_str += f"-i {included_gpus} "
+        if get_accelerator().device_name() != "xpu":
+            included_gpus = f"{replica_config.hostname}:{','.join(map(str, replica_config.gpu_indices))}"
+            worker_str += f"-i {included_gpus} "
 
         # adjust torch dist port depending on rank, otherwise multi-replica deployments will conflict
         # assign different ports to replicas because they could be on the same host
@@ -155,9 +157,19 @@ class MIIServer:
                 .encode())
             if get_accelerator().device_name() == "xpu":
                 ds_launch_str = self._generate_ds_launch_str(repl_config,
-                                                hostfile.name,
-                                                use_multiple_hosts)
+                                                             hostfile.name,
+                                                             use_multiple_hosts)
                 ds_launch_str += f" --force_multi --launcher impi"
+
+                if "ZE_AFFINITY_MASK" in os.environ:
+                    ze_mask_indices = os.environ["ZE_AFFINITY_MASK"].split(',')
+                    ze_used_indices = [ze_mask_indices[i] for i in repl_config.gpu_indices]
+                else:
+                    ze_used_indices = repl_config.gpu_indices
+
+                env = {**os.environ, "ZE_AFFINITY_MASK": ','.join(str(i) for i in ze_used_indices)}
+                print(f"mii::ZE,{env['ZE_AFFINITY_MASK']}", flush=True)
+
                 processes.append(
                     self._launch_server_process(
                         mii_config.model_config,
@@ -166,11 +178,12 @@ class MIIServer:
                         server_args=server_args + [
                             f"--server-port {repl_config.tensor_parallel_ports[0]} --zmq-port {repl_config.zmq_port}"
                         ],
+                        env=env,
                     ))
             else:
                 ds_launch_str = self._generate_ds_launch_str(repl_config,
-                                                hostfile.name,
-                                                use_multiple_hosts)
+                                                             hostfile.name,
+                                                             use_multiple_hosts)
                 processes.append(
                     self._launch_server_process(
                         mii_config.model_config,
