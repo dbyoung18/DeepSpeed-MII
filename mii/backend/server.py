@@ -150,7 +150,7 @@ class MIIServer:
                 for repl_config in mii_config.model_config.replica_configs)) > 1
 
         # Start replica instances
-        for repl_config in mii_config.model_config.replica_configs:
+        for i, repl_config in enumerate(mii_config.model_config.replica_configs):
             hostfile = tempfile.NamedTemporaryFile(delete=False)
             hostfile.write(
                 f"{repl_config.hostname} slots={max(host_gpus[repl_config.hostname])+1}\n"
@@ -167,8 +167,13 @@ class MIIServer:
                 else:
                     ze_used_indices = repl_config.gpu_indices
 
-                env = {**os.environ, "ZE_AFFINITY_MASK": ','.join(str(i) for i in ze_used_indices)}
+                env = {
+                    **os.environ,
+                    "ZE_AFFINITY_MASK": ','.join(str(i) for i in ze_used_indices),
+                    "CCL_INSTANCE_OFFSET": str(i),
+                }
                 print(f"mii::ZE,{env['ZE_AFFINITY_MASK']}", flush=True)
+                print(f"mii::ZE,{env['CCL_INSTANCE_OFFSET']}", flush=True)
 
                 processes.append(
                     self._launch_server_process(

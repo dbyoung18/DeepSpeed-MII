@@ -210,6 +210,7 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
 
         call_count = self.counter.get_and_increment()
         replica_index = call_count % len(self.stubs)
+        print(f"mii::intercept_service::call_count,{call_count}",flush=True)
 
         def invoke_intercept_method(request_proto, context):
             method_name = _get_grpc_method_name(handler_call_details.method)
@@ -223,6 +224,7 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
 
             call_count = self.counter.get()
             replica_index = call_count % len(self.stubs)
+            print(f"mii::invoke_intercept_method::call_count,{call_count},stubs.size,{len(self.stubs)},replica_index,{replica_index}", flush=True)
 
             ret = self.stubs[replica_index].invoke(method_name, request_proto)
             return ret

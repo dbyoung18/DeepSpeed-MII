@@ -395,7 +395,7 @@ def _allocate_devices(hostfile_path: str,
                     f"Number of devices must match tensor_parallel. Found {len(slots)} devices for host {host}, but tensor_parallel={tensor_parallel}"
                 )
             replica_pool.append((host, slots))
-
+    # print(f"mii::_allocate_devices:resource_pool,{resource_pool},device_map,{device_map},ZE,{os.environ['ZE_AFFINITY_MASK']},replica_pool,{replica_pool}", flush=True)
     return replica_pool
 
 
