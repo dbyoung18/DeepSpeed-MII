@@ -265,8 +265,11 @@ class RequestBatch:
         return RequestBatch([RequestMsg.from_msg_dict(msg) for msg in msg_dicts])
 
     def prune(self, uids: List[int]) -> None:
-        if len(uids) != 0:
-            print(f"complete {len(uids)} requests: {uids}", flush=True)
+        # if len(uids) != 0:
+        #     print(f"complete {len(uids)} requests: {uids}", flush=True)
+            # for r in self.requests:
+            #     if r.uid in uids:
+            #         print(f"complete,uid,{r.uid},in_len,{r.prompt_length},out_len,{r.num_generated_tokens}", flush=True)
         self.requests = [r for r in self.requests if r.uid not in uids]
 
     def append(self, r: Request) -> None:

@@ -37,6 +37,17 @@ from mii.logging import logger
 from mii.modeling.tokenizers import MIITokenizerWrapper
 
 
+BATCH_CASE = {
+    0 : "decode has no free blks",
+    1 : "prefill has no free blks",
+    2 : "prefill hits max_len",
+    3 : "prefill hits max_reqs",
+    4 : "prefill hits max_toks",
+    5 : "prefill unable to fill whole req",
+    6 : "prefill unable to fill split req"
+}
+
+
 class RaggedBatchBase:
     def __init__(self, inference_engine, tokenizer, model_config):
         self.inference_engine = inference_engine
@@ -82,6 +93,18 @@ class RaggedBatchBase:
             self.socket.setsockopt_string(zmq.SUBSCRIBE, "")
             self.socket.setsockopt(zmq.RCVTIMEO, ZMQ_RECV_TIMEOUT)
 
+        self.max_blks = self.inference_engine._state_manager._kv_cache._caches[0].shape[1]
+        self.max_toks = self.inference_engine._config.state_manager.max_ragged_batch_size
+        self.max_reqs = self.inference_engine._config.state_manager.max_ragged_sequence_count
+        print(f"mii::state_manager.config,{self.inference_engine._state_manager._config} max_blks={self.max_blks} max_toks={self.max_toks} max_reqs={self.max_reqs}")
+        self._case = 0
+        self._done = 0
+        if get_accelerator().device_name() == "xpu":
+            self._ranks = os.environ.get("ZE_AFFINITY_MASK", "0")
+        else:
+            self._ranks = get_accelerator().current_device()
+        self._inst = int(self._ranks[0]) // model_config.tensor_parallel
+
     @cached_property
     def local_rank(self) -> int:
         return get_accelerator().current_device()
@@ -100,6 +123,10 @@ class RaggedBatchBase:
 
         # 3. Put new tokens into inference engine
         if scheduled_requests.requests_to_run:
+            if self.is_rank_0:
+                print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
+                # print(f"req_lens,{[len(r.input_tokens) for r in scheduled_requests.requests_to_run]}")
+            self._iters += 1
             next_token_logits = self.put(
                 scheduled_requests.requests_to_run.uids,
                 scheduled_requests.requests_to_run.tokens,
@@ -133,6 +160,7 @@ class RaggedBatchBase:
                 self.request_queue.put(r)
 
         # 7. Update scheduled requests
+        self._done += len(running_requests.completed.uids)
         self.scheduled_requests.prune(running_requests.completed.uids)
         self.schedule_requests()
 
@@ -251,6 +279,8 @@ class RaggedBatchBase:
                 self.scheduled_length += 1
                 self.scheduled_req_blocks += 1
                 self.scheduled_requests.append(r)
+            else:
+                self._case = 0
 
     def _schedule_prompts(self, requests: List[Request]) -> None:
         free_blocks = min(self.inference_engine.free_blocks)
@@ -258,17 +288,21 @@ class RaggedBatchBase:
 
         for r in requests:
             if free_blocks == 0:
+                self._case = 1
                 break
 
             if r.max_length <= r.seq_length:
+                self._case = 2
                 continue
 
             # Make sure that the engine has enough capacity to process the batch
             if len(self.scheduled_requests.requests_to_run) >= conf_manager.max_ragged_sequence_count:
+                self._case = 3
                 break
 
             max_batch_size = conf_manager.max_ragged_batch_size - self.scheduled_length
             if max_batch_size <= 0:
+                self._case = 4
                 break
 
             max_blocks = free_blocks - self.scheduled_req_blocks
@@ -279,12 +313,14 @@ class RaggedBatchBase:
                 # So we make sure that we have capacity for the entire prompt (+tokens already generated).
                 req_tokens, _ = self.inference_engine.query(r.uid, len(r.input_tokens), max_blocks)
                 if req_tokens < len(r.input_tokens):
+                    self._case = 5
                     break
 
             req_tokens = min(len(r.input_tokens), max_batch_size)
             req_tokens, req_blocks = self.inference_engine.query(r.uid, req_tokens, max_blocks)
 
             if req_tokens <= 0:
+                self._case = 6
                 continue
 
             # Decompose the prompt to fit to the max ragged batch size
@@ -300,6 +336,7 @@ class RaggedBatchBase:
             self.scheduled_length += req_tokens
 
             if decomposed:
+                # print(f"decompose,uid,{r.uid},infer_toks,{req_tokens},remain_toks,{len(remaining_tokens)}")
                 req_remaining = copy.copy(r)
                 req_remaining.input_tokens = remaining_tokens
                 req_remaining.seq_length = r.seq_length + req_tokens
@@ -658,7 +695,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
         self.stop_thread = False
         self._is_shutdown = False
         self.UID_RANGE_LB = 1
-        self.UID_RANGE_UB = 10000
+        self.UID_RANGE_UB = 30000
         self.readable_stream = ReadableStream(self.tokenizer)
 
     def __call__(self) -> None:

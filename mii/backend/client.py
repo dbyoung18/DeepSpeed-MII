@@ -101,11 +101,13 @@ class MIIClient:
     def _generate_stream(self,
                          callback,
                          prompts: List[str],
+                         input_tokens: List[List[int]],
                          **query_kwargs: Dict[str,
                                               Any]) -> None:
         async def put_result():
             response_stream = self._request_async_response_stream(
                 prompts,
+                input_tokens,
                 **query_kwargs)
 
             while True:
