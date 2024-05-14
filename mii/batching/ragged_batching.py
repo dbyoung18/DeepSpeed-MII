@@ -38,6 +38,7 @@ from mii.modeling.tokenizers import MIITokenizerWrapper
 
 
 BATCH_CASE = {
+    -1 : "infer all requests",
     0 : "decode has no free blks",
     1 : "prefill has no free blks",
     2 : "prefill hits max_len",
@@ -97,7 +98,7 @@ class RaggedBatchBase:
         self.max_toks = self.inference_engine._config.state_manager.max_ragged_batch_size
         self.max_reqs = self.inference_engine._config.state_manager.max_ragged_sequence_count
         print(f"mii::state_manager.config,{self.inference_engine._state_manager._config} max_blks={self.max_blks} max_toks={self.max_toks} max_reqs={self.max_reqs}")
-        self._case = 0
+        self._case = -1
         self._done = 0
         if get_accelerator().device_name() == "xpu":
             self._ranks = os.environ.get("ZE_AFFINITY_MASK", "0")
@@ -123,8 +124,8 @@ class RaggedBatchBase:
 
         # 3. Put new tokens into inference engine
         if scheduled_requests.requests_to_run:
-            # if self.is_rank_0:
-            #     print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
+            if self.is_rank_0:
+                print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
                 # print(f"req_lens,{[len(r.input_tokens) for r in scheduled_requests.requests_to_run]}")
             self._iters += 1
             next_token_logits = self.put(
@@ -364,6 +365,7 @@ class RaggedBatchBase:
                     prompt_reqs.append(r)
 
         # We want to process next token generation first
+        self._case = -1
         self._schedule_token_gen(next_token_gen_reqs)
         self._schedule_prompts(prompt_reqs)
 
@@ -511,12 +513,14 @@ class RaggedBatchBase:
                       prompt_length: int,
                       generated_length: int,
                       finish_reason: GenerationFinishReason,
-                      generated_tokens: torch.Tensor) -> Response:
+                      generated_tokens: torch.Tensor,
+                      uid: int = None) -> Response:
         return Response(generated_text=generated_text,
                         prompt_length=prompt_length,
                         generated_length=generated_length,
                         finish_reason=finish_reason,
-                        generated_tokens=generated_tokens)
+                        generated_tokens=generated_tokens,
+                        uid=uid)
 
     def put(self, uids: List[int], tokenized_input: List[torch.Tensor]) -> torch.Tensor:
         # Call inference engine. You can skip checking schedulability because we already checked when scheduling
@@ -664,7 +668,7 @@ class MIIPipeline(RaggedBatchBase):
             generated_text = ""
         else:
             generated_text = self.tokenizer.decode(result[1])
-        response = self.make_response(generated_text, result[2], result[3], result[4], result[1])
+        response = self.make_response(generated_text, result[2], result[3], result[4], result[1], uid)
         return uid, response
 
     def _bcast_responses(self, responses: List[Response]) -> List[Response]:
@@ -718,7 +722,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
 
         return uid
 
-    def put_request(self, input: Union[str, List[int], torch.Tensor], kwargs: Dict) -> int:
+    def put_request(self, input: Union[str, List[int], torch.Tensor], kwargs: Dict, uid: int = None) -> int:
         # TODO: We should avoid any request/response work with non-rank 0, but
         # this requires some refactoring how we do the put and request in
         # `ModelResponse`
@@ -727,7 +731,10 @@ class MIIAsyncPipeline(RaggedBatchBase):
         if self.stop_thread:
             raise RuntimeError("The request queue was shutdown.")
 
-        uid = self._get_uid()
+        if uid is None:
+            uid = self._get_uid()
+        else:
+            self.uids.add(uid)
 
         # Temporary hack to avoid non-rank 0 processes not shutting down. See
         # related TODO above.
@@ -760,7 +767,8 @@ class MIIAsyncPipeline(RaggedBatchBase):
                             prompt_length=None,
                             generated_length=None,
                             finish_reason=None,
-                            generated_tokens=None)
+                            generated_tokens=None,
+                            uid=None)
         tid = threading.get_ident()
         uid, generated_token_ids, prompt_length, generated_length, finish_reason, streaming = self.result_queues[tid].get()
 
@@ -768,11 +776,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
             generated_text = ""
             self.readable_stream.flush_state(tid)
         elif streaming:
-            # generated_token_ids = generated_token_ids[0]
-            if self.model_config.skip_decode or len(generated_token_ids) == 0:
-                generated_text = ""
-            else:
-                generated_text = self.readable_stream.decode(tid, generated_token_ids)
+            generated_text = self.readable_stream.decode(tid, generated_token_ids)
         else:
             generated_text = self.tokenizer.decode(generated_token_ids)
 
@@ -782,6 +786,7 @@ class MIIAsyncPipeline(RaggedBatchBase):
             generated_length=generated_length,
             finish_reason=finish_reason,
             generated_tokens=generated_token_ids,
+            uid=uid,
         )
         return uid, response
 

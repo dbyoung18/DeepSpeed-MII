@@ -47,6 +47,7 @@ message SingleStringRequest {
   string request = 1;
   repeated int32 prompt_tokens = 2;
   map<string,Value> query_kwargs = 3;
+  int64 uid = 4;
 }
 
 message MultiStringRequest {
@@ -61,6 +62,7 @@ message SingleGenerationReply {
   float model_time_taken = 5;
   int64 generated_length = 6;
   repeated int64 generated_tokens = 7;
+  int64 uid = 8;
 }
 
 message MultiGenerationReply {

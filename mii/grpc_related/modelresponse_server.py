@@ -64,13 +64,13 @@ class ModelResponse(ServiceBase):
     def GeneratorReply(self, request, context):
         task_methods = self._get_task_methods("GeneratorReply")
 
-        prompts, kwargs = task_methods.unpack_request_from_proto(request)
+        prompts, kwargs, uids = task_methods.unpack_request_from_proto(request)
         uids_put_order, uids_running, uids_complete_order, responses = [], [], [], []
 
         # Put requests for all prompts into the pipeline
-        for p in prompts:
+        for p, uid in zip(prompts, uids):
             request_kwargs = kwargs.copy()
-            uid = self.inference_pipeline.put_request(p, request_kwargs)
+            uid = self.inference_pipeline.put_request(p, request_kwargs, uid)
             uids_put_order.append(uid)
             uids_running.append(uid)
 
@@ -99,19 +99,23 @@ class ModelResponse(ServiceBase):
     def GeneratorReplyStream(self, request, context):
         task_methods = self._get_task_methods("GeneratorReply")
 
-        prompts, kwargs = task_methods.unpack_request_from_proto(request)
-        uid = self.inference_pipeline.put_request(prompts[0], kwargs)
+        prompts, kwargs, uids = task_methods.unpack_request_from_proto(request)
+        uids_running = []
 
-        while True:
-            response_uid, r = self.inference_pipeline.get_response()
-            assert uid == response_uid, "uid mismatch"
-            done = r.finish_reason != GenerationFinishReason.NONE
-            response = task_methods.pack_response_to_proto([r])
-            yield response
-            if done:
-                break
+        for p, uid in zip(prompts, uids):
+            request_kwargs = kwargs.copy()
+            uid = self.inference_pipeline.put_request(p, request_kwargs, uid)
+            uids_running.append(uid)
 
-        self.inference_pipeline.flush_uid(uid)
+        while uids_running:
+            while True:
+                uid, r = self.inference_pipeline.get_response()
+                response = task_methods.pack_response_to_proto([r])
+                yield response
+                if r.finish_reason != GenerationFinishReason.NONE:
+                    self.inference_pipeline.flush_uid(uid)
+                    uids_running.remove(uid)
+                    break
 
 
 class AtomicCounter:
@@ -210,7 +214,6 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
 
         call_count = self.counter.get_and_increment()
         replica_index = call_count % len(self.stubs)
-        print(f"mii::intercept_service::call_count,{call_count}",flush=True)
 
         def invoke_intercept_method(request_proto, context):
             method_name = _get_grpc_method_name(handler_call_details.method)
@@ -224,7 +227,6 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
 
             call_count = self.counter.get()
             replica_index = call_count % len(self.stubs)
-            print(f"mii::invoke_intercept_method::call_count,{call_count},stubs.size,{len(self.stubs)},replica_index,{replica_index}", flush=True)
 
             ret = self.stubs[replica_index].invoke(method_name, request_proto)
             return ret

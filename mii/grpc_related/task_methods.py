@@ -62,11 +62,13 @@ class TextGenerationMethods(TaskMethods):
     def pack_request_to_proto(self,
                               prompts: List[str],
                               input_tokens: List[List[int]] = None,
+                              uids: List[int] = None,
                               **query_kwargs: Dict[str, Any]) -> Message:
         proto_requests = []
         for i, prompt in enumerate(prompts):
             proto_requests.append(
             modelresponse_pb2.SingleStringRequest(
+                uid=uids[i] if uids is not None else None,
                 request=prompt,
                 prompt_tokens=input_tokens[i] if input_tokens is not None else None,
                 query_kwargs=kwarg_dict_to_proto(query_kwargs),
@@ -84,7 +86,9 @@ class TextGenerationMethods(TaskMethods):
             inputs = [r.request for r in requests]
         else:
             inputs = [r.prompt_tokens for r in requests]
-        return inputs, kwargs
+        if requests[0].uid is not None:
+            uids = [r.uid for r in requests]
+        return inputs, kwargs, uids
 
     def pack_response_to_proto(self, responses: List[Response]) -> Message:
         proto_responses = []
@@ -101,6 +105,7 @@ class TextGenerationMethods(TaskMethods):
 
             proto_responses.append(
                 modelresponse_pb2.SingleGenerationReply(
+                    uid=r.uid,
                     response=r.generated_text,
                     finish_reason=str(r.finish_reason.value) if r.finish_reason is not None else "none",
                     prompt_tokens=r.prompt_length,
@@ -117,6 +122,7 @@ class TextGenerationMethods(TaskMethods):
         for r in response.response:
             response_batch.append(
                 Response(
+                    uid=r.uid,
                     generated_text=r.response,
                     prompt_length=r.prompt_tokens,
                     finish_reason=r.finish_reason,
