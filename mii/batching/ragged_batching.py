@@ -102,7 +102,7 @@ class RaggedBatchBase:
         if get_accelerator().device_name() == "xpu":
             self._ranks = os.environ.get("ZE_AFFINITY_MASK", "0")
         else:
-            self._ranks = get_accelerator().current_device()
+            self._ranks = [get_accelerator().current_device()]
         self._inst = int(self._ranks[0]) // model_config.tensor_parallel
 
     @cached_property
@@ -123,8 +123,8 @@ class RaggedBatchBase:
 
         # 3. Put new tokens into inference engine
         if scheduled_requests.requests_to_run:
-            if self.is_rank_0:
-                print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
+            # if self.is_rank_0:
+            #     print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
                 # print(f"req_lens,{[len(r.input_tokens) for r in scheduled_requests.requests_to_run]}")
             self._iters += 1
             next_token_logits = self.put(
