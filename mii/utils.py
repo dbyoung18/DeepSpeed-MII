@@ -10,6 +10,7 @@ import deepspeed
 
 from dataclasses import dataclass
 from deepspeed import get_accelerator
+from deepspeed.comm import mpi_discovery
 from typing import List, TYPE_CHECKING
 from datetime import timedelta
 from huggingface_hub import HfApi
@@ -174,15 +175,17 @@ def generate_deployment_name(model_name_or_path: str):
     return f"{model_name}-mii-deployment"
 
 
-def init_distributed(model_config: "ModelConfig"):
-    # If not running with a distributed launcher (e.g., deepspeed, torch) set some default environment variables
+def init_distributed(model_config: "ModelConfig", auto_mpi_discovery: bool = True):
+    # If not running with a distributed launcher (e.g., deepspeed, torch, mpi) set some default environment variables
     required_env = ["RANK", "WORLD_SIZE", "MASTER_ADDR", "MASTER_PORT", "LOCAL_RANK"]
     if not all([e in os.environ for e in required_env]):
-        assert model_config.tensor_parallel == 1, "Attempting to run with TP > 1 and not using a distributed launcher like deepspeed or torch.distributed"
-        os.environ["RANK"] = "0"
-        os.environ["LOCAL_RANK"] = "0"
-        os.environ["WORLD_SIZE"] = "1"
-        os.environ["MASTER_ADDR"] = "localhost"
-        os.environ["MASTER_PORT"] = str(model_config.torch_dist_port)
+        if auto_mpi_discovery:
+            mpi_discovery(distributed_port=model_config.torch_dist_port, verbose=True)
+        else:
+            assert model_config.tensor_parallel == 1, "Attempting to run with TP > 1 and not using a distributed launcher like deepspeed or torch.distributed or mpi"
+            os.environ["RANK"] = "0"
+            os.environ["LOCAL_RANK"] = "0"
+            os.environ["WORLD_SIZE"] = "1"
+            os.environ["MASTER_ADDR"] = "localhost"
 
     deepspeed.init_distributed(dist_backend=deepspeed.get_accelerator().communication_backend_name(), timeout=timedelta(seconds=1e9))
