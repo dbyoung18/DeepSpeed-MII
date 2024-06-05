@@ -1,3 +1,4 @@
+from mii.constants import GenerationFinishReason
 from typing import Dict, List
 
 
@@ -11,17 +12,16 @@ class TokenStreamer:
     def put(self, responses: List) -> None:
         for response in responses:
             request_id = response.uid
-            generate_token = response.generated_tokens
-            if len(generate_token) == 0:
-                # print(f"finish,request_id:{request_id},generated_tokens,{self.generated_tokens[request_id]}", flush=True)
-                self.infer_count += 1
-                continue
+            generated_tokens = response.generated_tokens
             if request_id not in self.generated_text.keys():
                 self.generated_text[request_id] = response.generated_text
-                self.generated_tokens[request_id] = list(generate_token)
-            else:
+                self.generated_tokens[request_id] = list(generated_tokens)
+            elif len(generated_tokens) != 0:
                 self.generated_text[request_id] += response.generated_text
-                self.generated_tokens[request_id] += generate_token
+                self.generated_tokens[request_id] += generated_tokens
+            if response.finish_reason != GenerationFinishReason.NONE:
+                self.infer_count += 1
+                continue
 
     @property
     def is_complete(self) -> bool:

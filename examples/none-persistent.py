@@ -71,7 +71,7 @@ def main(args):
         )
         request = RequestGroup(
             request_ids=list(range(1, args.num_samples + 1)),
-            prompts=None,
+            prompts=prompts,
             input_tokens=[tokenizer.encode(prompt) for prompt in prompts],
         )
         print(f"ahead encode prompts to {request.input_tokens}")

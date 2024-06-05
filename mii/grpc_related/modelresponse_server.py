@@ -101,6 +101,8 @@ class ModelResponse(ServiceBase):
 
         prompts, kwargs, uids = task_methods.unpack_request_from_proto(request)
         uids_running = []
+        first_token_pool = {}
+        remain_tokens_pool = {}
 
         for p, uid in zip(prompts, uids):
             request_kwargs = kwargs.copy()
@@ -110,12 +112,31 @@ class ModelResponse(ServiceBase):
         while uids_running:
             while True:
                 uid, r = self.inference_pipeline.get_response()
-                response = task_methods.pack_response_to_proto([r])
-                yield response
-                if r.finish_reason != GenerationFinishReason.NONE:
-                    self.inference_pipeline.flush_uid(uid)
-                    uids_running.remove(uid)
-                    break
+                if uid not in first_token_pool.keys():  # first token
+                    # update
+                    first_token_pool[uid] = r
+                    first_token_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
+                    # generate
+                    response = task_methods.pack_response_to_proto([first_token_pool[uid]])
+                    yield response
+                    if r.finish_reason != GenerationFinishReason.NONE:
+                        self.inference_pipeline.flush_uid(uid)
+                        uids_running.remove(uid)
+                        break
+                else:  # remain tokens
+                    if uid not in remain_tokens_pool.keys():
+                        remain_tokens_pool[uid] = r
+                        remain_tokens_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
+                    elif len(r.generated_tokens) != 0:
+                        remain_tokens_pool[uid].generated_text += r.generated_text
+                        remain_tokens_pool[uid].generated_tokens.append(r.generated_tokens[0].tolist())
+                    if r.finish_reason != GenerationFinishReason.NONE:
+                        remain_tokens_pool[uid].finish_reason = r.finish_reason
+                        response = task_methods.pack_response_to_proto([remain_tokens_pool[uid]])
+                        yield response
+                        self.inference_pipeline.flush_uid(uid)
+                        uids_running.remove(uid)
+                        break
 
 
 class AtomicCounter:

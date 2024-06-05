@@ -95,11 +95,11 @@ class TextGenerationMethods(TaskMethods):
         for r in responses:
             if r.generated_tokens is None:
                 generated_tokens = []
-            elif type(r.generated_tokens) == list:  # stream:List[Tensor]
-                if len(r.generated_tokens) != 0:
+            elif type(r.generated_tokens) == list:  # stream
+                if len(r.generated_tokens) == 0 or type(r.generated_tokens[0]) == int:  # List[int]
+                    generated_tokens = r.generated_tokens
+                else:  # List[Tensor]
                     generated_tokens = [r.generated_tokens[0].tolist()]
-                else:
-                    generated_tokens = []
             else:  # Tensor
                 generated_tokens = r.generated_tokens.tolist()
 
