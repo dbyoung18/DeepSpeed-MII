@@ -100,11 +100,13 @@ class RaggedBatchBase:
         print(f"mii::state_manager.config,{self.inference_engine._state_manager._config} max_blks={self.max_blks} max_toks={self.max_toks} max_reqs={self.max_reqs}")
         self._case = -1
         self._done = 0
+        self._verbose = os.environ.get("MII_VERBOSE", False)
         if get_accelerator().device_name() == "xpu":
-            self._ranks = os.environ.get("ZE_AFFINITY_MASK", "0")
+            self._ranks = [int(rank) for rank in os.environ.get("ZE_AFFINITY_MASK", "0").split(',')]
         else:
             self._ranks = [get_accelerator().current_device()]
         self._inst = int(self._ranks[0]) // model_config.tensor_parallel
+        print(f"mii::launched instance {self._inst} on ranks {self._ranks}")
 
     @cached_property
     def local_rank(self) -> int:
@@ -124,7 +126,7 @@ class RaggedBatchBase:
 
         # 3. Put new tokens into inference engine
         if scheduled_requests.requests_to_run:
-            if self.is_rank_0:
+            if self._verbose and self.is_rank_0:
                 print(f"inst,{self._inst},iter,{self._iters},done_reqs,{self._done},run_reqs,{len(scheduled_requests.requests_to_run)},max_reqs,{self.max_reqs},run_toks,{sum([len(r.input_tokens) for r in scheduled_requests.requests_to_run])},max_toks,{self.max_toks},free_blks,{min(self.inference_engine.free_blocks)},req_blks,{self.scheduled_req_blocks},max_blks,{self.max_blks},batch_case,{self._case},{BATCH_CASE[self._case]}")
                 # print(f"req_lens,{[len(r.input_tokens) for r in scheduled_requests.requests_to_run]}")
             self._iters += 1
