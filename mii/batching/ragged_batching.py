@@ -97,7 +97,7 @@ class RaggedBatchBase:
         self.max_blks = self.inference_engine._state_manager._kv_cache._caches[0].shape[1]
         self.max_toks = self.inference_engine._config.state_manager.max_ragged_batch_size
         self.max_reqs = self.inference_engine._config.state_manager.max_ragged_sequence_count
-        print(f"mii::state_manager.config,{self.inference_engine._state_manager._config} max_blks={self.max_blks} max_toks={self.max_toks} max_reqs={self.max_reqs}")
+        logger.info(f"state_manager.config={self.inference_engine._state_manager._config} max_blks={self.max_blks} max_toks={self.max_toks} max_reqs={self.max_reqs}")
         self._case = -1
         self._done = 0
         self._verbose = os.environ.get("MII_VERBOSE", False)
@@ -106,7 +106,7 @@ class RaggedBatchBase:
         else:
             self._ranks = [get_accelerator().current_device()]
         self._inst = int(self._ranks[0]) // model_config.tensor_parallel
-        print(f"mii::launched instance {self._inst} on ranks {self._ranks}")
+        logger.info(f"launch replica {self._inst} on ranks {self._ranks}")
 
     @cached_property
     def local_rank(self) -> int:

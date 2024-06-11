@@ -23,6 +23,7 @@ from mii.constants import (
 )
 from mii.grpc_related.proto import modelresponse_pb2_grpc
 from mii.grpc_related.task_methods import TASK_METHODS_DICT, TaskMethods
+from mii.logging import logger
 
 
 class ServiceBase(modelresponse_pb2_grpc.ModelResponseServicer):
@@ -110,33 +111,30 @@ class ModelResponse(ServiceBase):
             uids_running.append(uid)
 
         while uids_running:
-            while True:
-                uid, r = self.inference_pipeline.get_response()
-                if uid not in first_token_pool.keys():  # first token
-                    # update
-                    first_token_pool[uid] = r
-                    first_token_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
-                    # generate
-                    response = task_methods.pack_response_to_proto([first_token_pool[uid]])
+            uid, r = self.inference_pipeline.get_response()
+            if uid not in first_token_pool.keys():  # first token
+                # update
+                first_token_pool[uid] = r
+                first_token_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
+                # generate
+                response = task_methods.pack_response_to_proto([first_token_pool[uid]])
+                yield response
+                if r.finish_reason != GenerationFinishReason.NONE:
+                    self.inference_pipeline.flush_uid(uid)
+                    uids_running.remove(uid)
+            else:  # remain tokens
+                if uid not in remain_tokens_pool.keys():
+                    remain_tokens_pool[uid] = r
+                    remain_tokens_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
+                elif len(r.generated_tokens) != 0:
+                    remain_tokens_pool[uid].generated_text += r.generated_text
+                    remain_tokens_pool[uid].generated_tokens.append(r.generated_tokens[0].tolist())
+                if r.finish_reason != GenerationFinishReason.NONE:
+                    remain_tokens_pool[uid].finish_reason = r.finish_reason
+                    response = task_methods.pack_response_to_proto([remain_tokens_pool[uid]])
                     yield response
-                    if r.finish_reason != GenerationFinishReason.NONE:
-                        self.inference_pipeline.flush_uid(uid)
-                        uids_running.remove(uid)
-                        break
-                else:  # remain tokens
-                    if uid not in remain_tokens_pool.keys():
-                        remain_tokens_pool[uid] = r
-                        remain_tokens_pool[uid].generated_tokens = [r.generated_tokens[0].tolist()]
-                    elif len(r.generated_tokens) != 0:
-                        remain_tokens_pool[uid].generated_text += r.generated_text
-                        remain_tokens_pool[uid].generated_tokens.append(r.generated_tokens[0].tolist())
-                    if r.finish_reason != GenerationFinishReason.NONE:
-                        remain_tokens_pool[uid].finish_reason = r.finish_reason
-                        response = task_methods.pack_response_to_proto([remain_tokens_pool[uid]])
-                        yield response
-                        self.inference_pipeline.flush_uid(uid)
-                        uids_running.remove(uid)
-                        break
+                    self.inference_pipeline.flush_uid(uid)
+                    uids_running.remove(uid)
 
 
 class AtomicCounter:
@@ -227,14 +225,15 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
 
         threading.Thread(target=run_asyncio_loop, args=(self.asyncio_loop, )).start()
 
-    def choose_stub(self, call_count):
+    def choose_stub(self, call_count = None):
+        if call_count is None:
+            call_count = self.counter.get_and_increment()
+            replica_index = call_count % len(self.stubs)
+            logger.info(f"choose replica {replica_index} to handle requests")
         return self.stubs[call_count % len(self.stubs)]
 
     def intercept_service(self, continuation, handler_call_details):
         next_handler = continuation(handler_call_details)
-
-        call_count = self.counter.get_and_increment()
-        replica_index = call_count % len(self.stubs)
 
         def invoke_intercept_method(request_proto, context):
             method_name = _get_grpc_method_name(handler_call_details.method)
@@ -246,10 +245,7 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
                 self.asyncio_loop.call_soon_threadsafe(self.asyncio_loop.stop)
                 return next_handler.unary_unary(request_proto, context)
 
-            call_count = self.counter.get()
-            replica_index = call_count % len(self.stubs)
-
-            ret = self.stubs[replica_index].invoke(method_name, request_proto)
+            ret = self.choose_stub().invoke(method_name, request_proto)
             return ret
 
         if next_handler.unary_unary is not None:
@@ -262,9 +258,11 @@ class LoadBalancingInterceptor(grpc.ServerInterceptor):
             result_queue = queue.Queue()
 
             def call_invoker(request_proto, context):
-                self.stubs[replica_index].invoke_stream(method_name,
-                                                        request_proto,
-                                                        result_queue)
+                call_count = self.counter.get_and_increment()
+                replica_index = call_count % len(self.stubs)
+                self.choose_stub().invoke_stream(method_name,
+                                                 request_proto,
+                                                 result_queue)
 
             def invoke_intercept_method_stream(request_proto, context):
                 threading.Thread(target=call_invoker,

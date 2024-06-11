@@ -133,7 +133,8 @@ class MIIClient:
         try:
             self.asyncio_loop.run_until_complete(self.terminate_async())
         except Exception as ex:
-            print(f"WARNING: {ex}")
+            # print(f"WARNING: {ex}")
+            pass
         if self.mii_config.enable_restful_api:
             requests.get(
                 f"http://localhost:{self.mii_config.restful_api_port}/terminate")

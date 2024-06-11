@@ -175,16 +175,16 @@ class MIIServer:
                 # set tuning env
                 if "BLOCK_RATIO" in os.environ:
                     env["BLOCK_RATIO"] = os.environ["BLOCK_RATIO"]
-                    print(f"mii::BLOCK_RATIO,{env['BLOCK_RATIO']}", flush=True)
+                    logger.info(f"set BLOCK_RATIO={env['BLOCK_RATIO']}")
                 if "MAX_TOK" in os.environ:
                     env["MAX_TOK"] = os.environ["MAX_TOK"]
-                    print(f"mii::MAX_TOK,{env['MAX_TOK']}", flush=True)
+                    logger.info(f"set MAX_TOK={env['MAX_TOK']}")
                 if "MAX_REQ" in os.environ:
                     env["MAX_REQ"] = os.environ["MAX_REQ"]
-                    print(f"mii::MAX_REQ,{env['MAX_REQ']}", flush=True)
+                    logger.info(f"set MAX_REQ={env['MAX_REQ']}")
 
-                print(f"mii::ZE_AFFINITY_MASK,{env['ZE_AFFINITY_MASK']}", flush=True)
-                print(f"mii::CCL_INSTANCE_OFFSET,{env['CCL_INSTANCE_OFFSET']}", flush=True)
+                logger.info(f"set ZE_AFFINITY_MASK={env['ZE_AFFINITY_MASK']}")
+                logger.info(f"set CCL_INSTANCE_OFFSET={env['CCL_INSTANCE_OFFSET']}")
 
                 processes.append(
                     self._launch_server_process(
